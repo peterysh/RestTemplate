@@ -59,14 +59,16 @@ public class PaymentServiceTest {
     public void concurrencyTest() throws InterruptedException {
         Runnable txA = () ->{
             /**
-             * 5000원이 잔돈인 target 에게 첫번째 트렌잭션(A)가 2000원을 빼감
+             * target has 5000
+             * target -> A (2000).
              */
             paymentRetryService.try3Time(target.getId(),memberA.getId()
                     ,2000l,10,false);
         };
         Runnable txB = () ->{
             /**
-             * 남은 잔돈이 3000원인 target 에게 두번째 트렌잭션(B)가 4000원을 빼감
+             * target has 5000
+             * target -> B(4000)
              */
             assertThrows(MinusPointException.class, () -> {
             paymentRetryService.try3Time(target.getId(), memberB.getId(), 4000l
@@ -85,14 +87,16 @@ public class PaymentServiceTest {
     public void concurrencyExitTest() throws InterruptedException {
         Runnable txA = () ->{
             /**
-             * 5000원이 잔돈인 target 에게 첫번째 트렌잭션(A)가 2000원을 빼감
+             * target: 5000
+             * target -> A(2000) but system error(ex, shutdonwn computer)
              */
             paymentRetryService.try3Time(target.getId(),memberA.getId()
                     ,2000l,10,true);
         };
         Runnable txB = () ->{
             /**
-             * 남은 잔돈이 3000원인 target 에게 두번째 트렌잭션(B)가 4000원을 빼감
+             * target: 5000
+             * target -> B(4000)
              */
             paymentRetryService.try3Time(target.getId(), memberB.getId(), 4000l
                     , 1000, false);
@@ -107,7 +111,8 @@ public class PaymentServiceTest {
     public void doublePlusTest() throws InterruptedException {
         Runnable txA = () ->{
             /**
-             * 5000원이 잔돈인 target 에게 첫번째 트렌잭션(A)이 2000원을 전송
+             * target: 5000
+             * A -> target(2000)
              */
             memberService.addPoints(memberA.getId(),2000l);
             paymentRetryService.try3Time(memberA.getId(),target.getId()
@@ -115,7 +120,8 @@ public class PaymentServiceTest {
         };
         Runnable txB = () ->{
             /**
-             * 남은 잔돈이 7000원인 target 에게 두번째 트렌잭션(B)가 3000원을 전송
+             * target: 5000
+             * B -> target(3000)
              */
             memberService.addPoints(memberB.getId(), 3000l);
             paymentRetryService.try3Time(memberB.getId(),target.getId(),3000l
@@ -124,6 +130,9 @@ public class PaymentServiceTest {
 
         runTransactions(txA, txB);
         Member plusMember = memberService.findMemberById(target.getId());
+        /**
+         * thanks to @Retry, this test codes are passed!
+         */
         assertEquals(plusMember.getPoints(), 10000l);
     }
 
@@ -133,7 +142,8 @@ public class PaymentServiceTest {
     public void duplicateRequestAfterSuccess() throws InterruptedException {
         Runnable txA = () ->{
             /**
-             * 5000원이 잔돈인 target 에게 첫번째 트렌잭션(A)이 2000원 전송을 여러번 시도
+             * target: 5000
+             * target -> A(3000) try many times, but there should be one trade. (idempotent test)
              */
             paymentRetryService.tryManyTime(target.getId(), memberA.getId()
                     , 2000l, 0, false);
